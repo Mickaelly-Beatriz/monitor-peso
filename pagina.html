@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Peso</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        h1 { background-color: green; color: white; padding: 10px; }
+        canvas { max-width: 600px; margin: auto; }
+        table { width: 80%; margin: auto; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: center; }
+        th { background-color: #4CAF50; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>Monitor de Peso</h1>
+    <p>Peso Atual: <span id='peso'>--</span> kg</p>
+    <p>Data/Hora: <span id='dataHora'>--</span></p>
+
+    <h2>Histórico de Medições</h2>
+    <canvas id="historicoChart"></canvas>
+
+    <h2>Arquivos no Servidor</h2>
+    <table>
+        <thead>
+            <tr><th>Nome</th><th>Tamanho</th><th>Ações</th></tr>
+        </thead>
+        <tbody id="fileList"></tbody>
+    </table>
+
+    <script>
+        let historicoPesos = [];
+        let historicoHoras = [];
+        const ctx = document.getElementById('historicoChart').getContext('2d');
+        const historicoChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: historicoHoras,
+                datasets: [{
+                    label: 'Peso (kg)',
+                    data: historicoPesos,
+                    borderColor: 'blue',
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { title: { display: true, text: 'Tempo' } },
+                    y: { title: { display: true, text: 'Peso (kg)' }, beginAtZero: false }
+                }
+            }
+        });
+
+        function atualizarPeso() {
+            fetch('/peso')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('peso').innerText = data.peso;
+                    document.getElementById('dataHora').innerText = data.dataHora;
+                    historicoPesos.push(data.peso);
+                    historicoHoras.push(data.dataHora);
+                    if (historicoPesos.length > 20) {
+                        historicoPesos.shift();
+                        historicoHoras.shift();
+                    }
+                    historicoChart.update();
+                })
+                .catch(error => console.error('Erro:', error));
+        }
+
+        function listarArquivos() {
+            fetch('/listar')
+                .then(response => response.json())
+                .then(files => {
+                    const fileList = document.getElementById('fileList');
+                    fileList.innerHTML = '';
+                    files.forEach(file => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${file.name}</td>
+                            <td>${file.size} B</td>
+                            <td>
+                                <a href="/download?file=${file.name}">Download</a> |
+                                <a href="/delete?file=${file.name}">Delete</a>
+                            </td>
+                        `;
+                        fileList.appendChild(row);
+                    });
+                })
+                .catch(error => console.error('Erro ao listar arquivos:', error));
+        }
+
+        setInterval(atualizarPeso, 5000);
+        setInterval(listarArquivos, 10000);
+    </script>
+</body>
+</html>
